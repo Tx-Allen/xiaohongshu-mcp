@@ -215,7 +215,7 @@ func (s *XiaohongshuService) publishContent(ctx context.Context, accountID strin
 	return action.Publish(ctx, content)
 }
 
-// ListFeeds 获取Feeds列表
+// ListFeeds 获取指定账号的推荐内容列表
 func (s *XiaohongshuService) ListFeeds(ctx context.Context, accountID string) (*FeedsListResponse, error) {
 	b, err := s.newBrowser(accountID)
 	if err != nil {

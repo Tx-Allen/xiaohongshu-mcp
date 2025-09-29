@@ -125,7 +125,7 @@ func (s *AppServer) publishHandler(c *gin.Context) {
 	respondSuccess(c, result, "发布成功")
 }
 
-// listFeedsHandler 获取Feeds列表
+// listFeedsHandler 获取账号推荐内容列表
 func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	accountID, ok := accountIDFromQuery(c)
 	if !ok {
@@ -135,12 +135,12 @@ func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	result, err := s.xiaohongshuService.ListFeeds(c.Request.Context(), accountID)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "LIST_FEEDS_FAILED",
-			"获取Feeds列表失败", err.Error())
+			"获取推荐内容列表失败", err.Error())
 		return
 	}
 
 	c.Set("account", accountID)
-	respondSuccess(c, result, "获取Feeds列表成功")
+	respondSuccess(c, result, "获取推荐内容列表成功")
 }
 
 // searchFeedsHandler 搜索Feeds

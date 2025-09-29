@@ -176,21 +176,21 @@ func (s *AppServer) handlePublishContent(ctx context.Context, args map[string]in
 	}
 }
 
-// handleListFeeds 处理获取Feeds列表
+// handleListFeeds 处理获取账号推荐内容列表
 func (s *AppServer) handleListFeeds(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	accountID, err := accountIDFromArgs(args)
 	if err != nil {
 		return accountErrorResult(err)
 	}
 
-	logrus.WithField("account", accountID).Info("MCP: 获取Feeds列表")
+	logrus.WithField("account", accountID).Info("MCP: 获取推荐内容列表")
 
 	result, err := s.xiaohongshuService.ListFeeds(ctx, accountID)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{
 				Type: "text",
-				Text: "获取Feeds列表失败: " + err.Error(),
+				Text: "获取推荐内容列表失败: " + err.Error(),
 			}},
 			IsError: true,
 		}
@@ -202,7 +202,7 @@ func (s *AppServer) handleListFeeds(ctx context.Context, args map[string]interfa
 		return &MCPToolResult{
 			Content: []MCPContent{{
 				Type: "text",
-				Text: fmt.Sprintf("获取Feeds列表成功，但序列化失败: %v", err),
+				Text: fmt.Sprintf("获取推荐内容列表成功，但序列化失败: %v", err),
 			}},
 			IsError: true,
 		}

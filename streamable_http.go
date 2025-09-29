@@ -223,7 +223,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "list_feeds",
-			"description": "获取用户发布的内容列表",
+			"description": "获取指定账号的推荐内容列表",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -237,7 +237,7 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 		},
 		{
 			"name":        "search_feeds",
-			"description": "搜索小红书内容（需要已登录）",
+			"description": "用指定账号搜索小红书内容",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{

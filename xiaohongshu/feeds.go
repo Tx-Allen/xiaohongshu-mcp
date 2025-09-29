@@ -27,7 +27,13 @@ func NewFeedsListAction(page *rod.Page) (*FeedsListAction, error) {
 
 	if err := waitForInitialState(pp, `() => {
 		const state = window.__INITIAL_STATE__;
-		return !!(state && state.feed && state.feed.feeds && state.feed.feeds._value);
+		return !!(
+			state &&
+			state.feed &&
+			state.feed.feeds &&
+			state.feed.feeds._value &&
+			state.feed.feeds._value.length > 0
+		);
 	}`, 30*time.Second); err != nil {
 		return nil, err
 	}

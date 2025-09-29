@@ -36,7 +36,13 @@ func (s *SearchAction) Search(ctx context.Context, keyword string) ([]Feed, erro
 
 	if err := waitForInitialState(page, `() => {
 		const state = window.__INITIAL_STATE__;
-		return !!(state && state.search && state.search.feeds && state.search.feeds._value);
+		return !!(
+			state &&
+			state.search &&
+			state.search.feeds &&
+			state.search.feeds._value &&
+			state.search.feeds._value.length > 0
+		);
 	}`, 30*time.Second); err != nil {
 		return nil, err
 	}

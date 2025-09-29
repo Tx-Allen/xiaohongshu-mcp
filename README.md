@@ -80,7 +80,7 @@ https://github.com/user-attachments/assets/03c5077d-6160-4b18-b629-2e40933a1fd3
 <details>
 <summary><b>4. 获取推荐列表</b></summary>
 
-获取小红书首页推荐内容列表。
+获取指定账号在网页首页看到的推荐内容列表。
 
 **获取推荐列表演示：**
 
@@ -635,7 +635,7 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 - `check_login_status` - 检查小红书登录状态（无参数）
 - `publish_content` - 发布图文内容到小红书（必需：title, content, images）
   - `images`: 支持 HTTP 链接或本地绝对路径，推荐使用本地路径
-- `list_feeds` - 获取小红书首页推荐列表（无参数）
+- `list_feeds` - 获取指定账号的推荐内容列表（无参数）
 - `search_feeds` - 搜索小红书内容（需要：keyword）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
 - `post_comment_to_feed` - 发表评论到小红书帖子（需要：feed_id, xsec_token, content）
