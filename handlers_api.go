@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/xpzouying/xiaohongshu-mcp/accounts"
+	"github.com/xpzouying/xiaohongshu-mcp/xiaohongshu"
 )
 
 // respondError 返回错误响应
@@ -125,6 +126,34 @@ func (s *AppServer) publishHandler(c *gin.Context) {
 	respondSuccess(c, result, "发布成功")
 }
 
+// publishVideoHandler 发布视频内容
+func (s *AppServer) publishVideoHandler(c *gin.Context) {
+	var payload struct {
+		AccountID string `json:"account_id" binding:"required"`
+		PublishVideoRequest
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	accountID, ok := resolveAccountID(c, payload.AccountID)
+	if !ok {
+		return
+	}
+
+	result, err := s.xiaohongshuService.PublishVideo(c.Request.Context(), accountID, &payload.PublishVideoRequest)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "PUBLISH_VIDEO_FAILED",
+			"发布视频失败", err.Error())
+		return
+	}
+
+	c.Set("account", accountID)
+	respondSuccess(c, result, "发布视频成功")
+}
+
 // listFeedsHandler 获取账号推荐内容列表
 func (s *AppServer) listFeedsHandler(c *gin.Context) {
 	accountID, ok := accountIDFromQuery(c)
@@ -157,8 +186,21 @@ func (s *AppServer) searchFeedsHandler(c *gin.Context) {
 		return
 	}
 
+	filters, err := xiaohongshu.NewSearchFilters(
+		strings.TrimSpace(c.Query("sort")),
+		strings.TrimSpace(c.Query("note_type")),
+		strings.TrimSpace(c.Query("publish_time")),
+		strings.TrimSpace(c.Query("search_scope")),
+		strings.TrimSpace(c.Query("distance")),
+	)
+	if err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_FILTER",
+			"筛选参数不合法", err.Error())
+		return
+	}
+
 	// 搜索 Feeds
-	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), accountID, keyword)
+	result, err := s.xiaohongshuService.SearchFeeds(c.Request.Context(), accountID, keyword, filters)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "SEARCH_FEEDS_FAILED",
 			"搜索Feeds失败", err.Error())
@@ -264,4 +306,40 @@ func healthHandler(c *gin.Context) {
 		"account":   "ai-report",
 		"timestamp": "now",
 	}, "服务正常")
+}
+
+// listAccountsHandler 返回所有账号信息
+func (s *AppServer) listAccountsHandler(c *gin.Context) {
+	infos, err := accounts.ListAccounts()
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "LIST_ACCOUNTS_FAILED",
+			"获取账号列表失败", err.Error())
+		return
+	}
+
+	c.Set("account", "*")
+	respondSuccess(c, map[string]any{"accounts": infos}, "获取账号列表成功")
+}
+
+// setAccountRemarkHandler 更新账号备注
+func (s *AppServer) setAccountRemarkHandler(c *gin.Context) {
+	var payload struct {
+		AccountID string `json:"account_id" binding:"required"`
+		Remark    string `json:"remark"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	info, err := accounts.SetAccountRemark(payload.AccountID, payload.Remark)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "SET_ACCOUNT_REMARK_FAILED",
+			"更新账号备注失败", err.Error())
+		return
+	}
+
+	c.Set("account", info.ID)
+	respondSuccess(c, info, "更新账号备注成功")
 }

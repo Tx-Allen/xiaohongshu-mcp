@@ -1,12 +1,15 @@
 package accounts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -14,7 +17,21 @@ const (
 	cookiesFileName  = "cookies.json"
 	imagesDirName    = "images"
 	dataDirName      = "accounts"
+	metaFileName     = "meta.json"
 )
+
+type AccountMeta struct {
+	Remark    string    `json:"remark"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type AccountInfo struct {
+	ID        string    `json:"id"`
+	Remark    string    `json:"remark"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
 
 var accountIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
@@ -54,23 +71,104 @@ func baseDataDir() (string, error) {
 	return dir, nil
 }
 
+func accountsRootDir() (string, error) {
+	baseDir, err := baseDataDir()
+	if err != nil {
+		return "", err
+	}
+
+	root := filepath.Join(baseDir, dataDirName)
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return "", fmt.Errorf("failed to ensure accounts dir %s: %w", root, err)
+	}
+	return root, nil
+}
+
 func accountDir(accountID string) (string, error) {
 	id, err := sanitizeAccountID(accountID)
 	if err != nil {
 		return "", err
 	}
 
-	baseDir, err := baseDataDir()
+	root, err := accountsRootDir()
 	if err != nil {
 		return "", err
 	}
 
-	dir := filepath.Join(baseDir, dataDirName, id)
+	dir := filepath.Join(root, id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to ensure account dir %s: %w", dir, err)
 	}
 
 	return dir, nil
+}
+
+func metaPath(accountID string) (string, error) {
+	dir, err := accountDir(accountID)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, metaFileName), nil
+}
+
+func ensureMeta(accountID string) (*AccountMeta, error) {
+	path, err := metaPath(accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		meta := defaultAccountMeta()
+		if err := saveAccountMeta(path, meta); err != nil {
+			return nil, err
+		}
+		return meta, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var meta AccountMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, err
+	}
+	meta = normalizeAccountMeta(meta)
+	if err := saveAccountMeta(path, &meta); err != nil {
+		return nil, err
+	}
+	return &meta, nil
+}
+
+func defaultAccountMeta() *AccountMeta {
+	now := time.Now()
+	return &AccountMeta{
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}
+
+func normalizeAccountMeta(meta AccountMeta) AccountMeta {
+	if meta.CreatedAt.IsZero() {
+		meta.CreatedAt = time.Now()
+	}
+	if meta.UpdatedAt.IsZero() {
+		meta.UpdatedAt = meta.CreatedAt
+	}
+	return meta
+}
+
+func saveAccountMeta(path string, meta *AccountMeta) error {
+	meta = &AccountMeta{
+		Remark:    strings.TrimSpace(meta.Remark),
+		CreatedAt: meta.CreatedAt,
+		UpdatedAt: meta.UpdatedAt,
+	}
+	buf, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, buf, 0o644)
 }
 
 // CookiesPath returns the cookies file path for the given account, ensuring directories exist.
@@ -115,6 +213,9 @@ func EnsureAccount(accountID string) error {
 	if _, err := ImagesDir(accountID); err != nil {
 		return err
 	}
+	if _, err := ensureMeta(accountID); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -143,3 +244,97 @@ func IsDefaultAccount(accountID string) bool {
 
 // ErrMissingAccountID is returned when the account identifier is empty and callers require it.
 var ErrMissingAccountID = errors.New("account_id is required")
+
+// ListAccounts 返回所有账号信息
+func ListAccounts() ([]AccountInfo, error) {
+	root, err := accountsRootDir()
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]AccountInfo, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		id := entry.Name()
+		meta, err := ensureMeta(id)
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, AccountInfo{
+			ID:        id,
+			Remark:    meta.Remark,
+			CreatedAt: meta.CreatedAt,
+			UpdatedAt: meta.UpdatedAt,
+		})
+	}
+
+	// ensure default account present even if dir missing
+	if _, err := os.Stat(filepath.Join(root, defaultAccountID)); os.IsNotExist(err) {
+		if err := EnsureAccount(defaultAccountID); err != nil {
+			return nil, err
+		}
+		meta, err := ensureMeta(defaultAccountID)
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, AccountInfo{
+			ID:        defaultAccountID,
+			Remark:    meta.Remark,
+			CreatedAt: meta.CreatedAt,
+			UpdatedAt: meta.UpdatedAt,
+		})
+	}
+
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].ID < infos[j].ID
+	})
+
+	return infos, nil
+}
+
+// SetAccountRemark 更新账号备注
+func SetAccountRemark(accountID, remark string) (*AccountInfo, error) {
+	id, err := ResolveAccountID(accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := EnsureAccount(id); err != nil {
+		return nil, err
+	}
+
+	path, err := metaPath(id)
+	if err != nil {
+		return nil, err
+	}
+
+	meta, err := ensureMeta(id)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	if meta.CreatedAt.IsZero() {
+		meta.CreatedAt = now
+	}
+	meta.Remark = strings.TrimSpace(remark)
+	meta.UpdatedAt = now
+
+	if err := saveAccountMeta(path, meta); err != nil {
+		return nil, err
+	}
+
+	return &AccountInfo{
+		ID:        id,
+		Remark:    meta.Remark,
+		CreatedAt: meta.CreatedAt,
+		UpdatedAt: meta.UpdatedAt,
+	}, nil
+}

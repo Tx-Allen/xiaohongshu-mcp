@@ -222,6 +222,39 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 			},
 		},
 		{
+			"name":        "publish_video",
+			"description": "发布小红书视频内容",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"account_id": map[string]interface{}{
+						"type":        "string",
+						"description": "账号标识，用于区分 cookies 会话",
+					},
+					"title": map[string]interface{}{
+						"type":        "string",
+						"description": "内容标题（小红书限制：最多20个中文字或英文单词）",
+					},
+					"content": map[string]interface{}{
+						"type":        "string",
+						"description": "正文内容，不包含以#开头的标签内容，所有话题标签都用tags参数来生成和提供即可",
+					},
+					"video": map[string]interface{}{
+						"type":        "string",
+						"description": "本地视频绝对路径，仅支持单个视频文件",
+					},
+					"tags": map[string]interface{}{
+						"type":        "array",
+						"description": "话题标签列表（可选），如 [\"美食\", \"旅行\"]",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
+					},
+				},
+				"required": []string{"account_id", "title", "content", "video"},
+			},
+		},
+		{
 			"name":        "list_feeds",
 			"description": "获取指定账号的推荐内容列表",
 			"inputSchema": map[string]interface{}{
@@ -236,8 +269,60 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 			},
 		},
 		{
+			"name":        "like_feed",
+			"description": "点赞或取消点赞指定笔记",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"account_id": map[string]interface{}{
+						"type":        "string",
+						"description": "账号标识，用于区分 cookies 会话",
+					},
+					"feed_id": map[string]interface{}{
+						"type":        "string",
+						"description": "小红书笔记ID",
+					},
+					"xsec_token": map[string]interface{}{
+						"type":        "string",
+						"description": "访问令牌",
+					},
+					"unlike": map[string]interface{}{
+						"type":        "boolean",
+						"description": "是否取消点赞，true 为取消点赞",
+					},
+				},
+				"required": []string{"account_id", "feed_id", "xsec_token"},
+			},
+		},
+		{
+			"name":        "favorite_feed",
+			"description": "收藏或取消收藏指定笔记",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"account_id": map[string]interface{}{
+						"type":        "string",
+						"description": "账号标识，用于区分 cookies 会话",
+					},
+					"feed_id": map[string]interface{}{
+						"type":        "string",
+						"description": "小红书笔记ID",
+					},
+					"xsec_token": map[string]interface{}{
+						"type":        "string",
+						"description": "访问令牌",
+					},
+					"unfavorite": map[string]interface{}{
+						"type":        "boolean",
+						"description": "是否取消收藏，true 为取消收藏",
+					},
+				},
+				"required": []string{"account_id", "feed_id", "xsec_token"},
+			},
+		},
+		{
 			"name":        "search_feeds",
-			"description": "用指定账号搜索小红书内容",
+			"description": "用指定账号搜索小红书内容，可附加筛选条件",
 			"inputSchema": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -248,6 +333,26 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 					"keyword": map[string]interface{}{
 						"type":        "string",
 						"description": "搜索关键词",
+					},
+					"sort": map[string]interface{}{
+						"type":        "string",
+						"description": "排序方式，可选：comprehensive(默认)、latest、most_likes、most_comments、most_favorites",
+					},
+					"note_type": map[string]interface{}{
+						"type":        "string",
+						"description": "笔记类型，可选：all(默认)、video、image",
+					},
+					"publish_time": map[string]interface{}{
+						"type":        "string",
+						"description": "发布时间范围，可选：all(默认)、day、week、half_year",
+					},
+					"search_scope": map[string]interface{}{
+						"type":        "string",
+						"description": "搜索范围，可选：all(默认)、seen、unseen、followed",
+					},
+					"distance": map[string]interface{}{
+						"type":        "string",
+						"description": "位置距离，可选：all(默认)、same_city、nearby",
 					},
 				},
 				"required": []string{"account_id", "keyword"},
@@ -323,6 +428,32 @@ func (s *AppServer) processToolsList(request *JSONRPCRequest) *JSONRPCResponse {
 				"required": []string{"account_id", "feed_id", "xsec_token", "content"},
 			},
 		},
+		{
+			"name":        "list_accounts",
+			"description": "查看所有账号及备注信息",
+			"inputSchema": map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		{
+			"name":        "set_account_remark",
+			"description": "更新账号备注信息",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"account_id": map[string]interface{}{
+						"type":        "string",
+						"description": "账号标识，用于区分 cookies 会话",
+					},
+					"remark": map[string]interface{}{
+						"type":        "string",
+						"description": "备注内容（可为空，表示清除备注）",
+					},
+				},
+				"required": []string{"account_id"},
+			},
+		},
 	}
 
 	return &JSONRPCResponse{
@@ -361,6 +492,8 @@ func (s *AppServer) processToolCall(ctx context.Context, request *JSONRPCRequest
 		result = s.handleGetLoginQrcode(ctx, toolArgs)
 	case "publish_content":
 		result = s.handlePublishContent(ctx, toolArgs)
+	case "publish_video":
+		result = s.handlePublishVideo(ctx, toolArgs)
 	case "list_feeds":
 		result = s.handleListFeeds(ctx, toolArgs)
 	case "search_feeds":
@@ -371,6 +504,14 @@ func (s *AppServer) processToolCall(ctx context.Context, request *JSONRPCRequest
 		result = s.handleUserProfile(ctx, toolArgs)
 	case "post_comment_to_feed":
 		result = s.handlePostComment(ctx, toolArgs)
+	case "like_feed":
+		result = s.handleLikeFeed(ctx, toolArgs)
+	case "favorite_feed":
+		result = s.handleFavoriteFeed(ctx, toolArgs)
+	case "list_accounts":
+		result = s.handleListAccounts(ctx)
+	case "set_account_remark":
+		result = s.handleSetAccountRemark(ctx, toolArgs)
 	default:
 		return &JSONRPCResponse{
 			JSONRPC: "2.0",

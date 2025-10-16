@@ -1,5 +1,18 @@
 # xiaohongshu-mcp
 
+## 本人魔改内容
+
+**多账号**
+- REST：`GET /api/v1/accounts` 列出账号及备注；`POST /api/v1/accounts/remark` 更新备注（空字符串可清除）。
+- MCP：`list_accounts`、`set_account_remark`，同样需要显式传 `account_id`。
+- 数据隔离：每个账号拥有独立 cookies / 图片目录，可在 `./data/accounts/<account_id>/` 查看。
+
+**搜索筛选器**
+- 支持排序、笔记类型、发布时间、搜索范围、位置距离五大可选参数。
+- REST 示例：`curl "http://localhost:18060/api/v1/feeds/search?account_id=brand_a&keyword=咖啡&sort=latest&note_type=video"`
+- MCP 工具 `search_feeds` 同步支持上述字段，内部使用 CSS 选择器稳定点击筛选项。
+
+## 以下是原版信息
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-13-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
@@ -31,7 +44,66 @@ https://github.com/user-attachments/assets/8b05eb42-d437-41b7-9235-e2143f19e8b7
 
 https://github.com/user-attachments/assets/bd9a9a4a-58cb-4421-b8f3-015f703ce1f9
 
-</details>
+
+## 🔧 自定义增强功能速览
+
+> 以下内容为当前仓库在原版基础上的扩展，原始文档保持不变。
+
+### 1. 多账号管理增强
+
+- **REST**
+  - `GET /api/v1/accounts`：列出本地所有账号及备注信息。
+  - `POST /api/v1/accounts/remark`：`{"account_id":"brand_a","remark":"品牌主号"}` 更新备注，传空字符串即可清除。
+- **MCP 工具**
+  - `list_accounts`：查看账号及备注。
+  - `set_account_remark`：更新账号备注（参数：`account_id`，可选 `remark`）。
+
+### 2. 搜索筛选条件支持
+
+在原有搜索能力上新增可选参数：
+
+- 排序：`sort` = `comprehensive|latest|most_likes|most_comments|most_favorites`
+- 笔记类型：`note_type` = `all|video|image`
+- 发布时间：`publish_time` = `all|day|week|half_year`
+- 搜索范围：`search_scope` = `all|seen|unseen|followed`
+- 位置距离：`distance` = `all|same_city|nearby`
+
+示例：
+
+```
+curl "http://localhost:18060/api/v1/feeds/search?account_id=brand_a&keyword=咖啡&sort=latest&note_type=video"
+```
+
+MCP 工具 `search_feeds` 也支持上述字段。
+
+### 3. 发布视频 & 图文
+
+- **REST**：`POST /api/v1/publish_video`
+
+  ```bash
+  curl -X POST http://localhost:18060/api/v1/publish_video \ 
+    -H "Content-Type: application/json" \ 
+    -d '{
+      "account_id": "brand_a",
+      "title": "周末露营Vlog",
+      "content": "记录一次美好的露营时光",
+      "video": "/Users/allen/Videos/camp.mp4",
+      "tags": ["露营", "vlog"]
+    }'
+  ```
+
+- **MCP**：
+  - `publish_content`：继续用于图文。
+  - `publish_video`：用于视频内容（参数：`account_id`, `title`, `content`, `video`, 可选 `tags`）。
+
+### 4. 一键点赞 / 收藏
+
+新增 MCP 工具：
+
+- `like_feed`：参数 `account_id`, `feed_id`, `xsec_token`，可选 `unlike: true` 表示取消点赞。
+- `favorite_feed`：参数同上，可选 `unfavorite: true` 表示取消收藏。
+
+调用成功后会返回操作结果及提示信息，方便结合自动化流程批量执行互动。
 
 <details>
 <summary><b>2. 发布图文内容</b></summary>
@@ -67,7 +139,27 @@ https://github.com/user-attachments/assets/8aee0814-eb96-40af-b871-e66e6bbb6b06
 </details>
 
 <details>
-<summary><b>3. 搜索内容</b></summary>
+<summary><b>3. 发布视频内容</b></summary>
+
+支持发布视频内容到小红书，包括标题、内容描述和本地视频文件。
+
+**视频支持方式：仅支持本地视频文件绝对路径**
+
+```
+"/Users/username/Videos/video.mp4"
+```
+
+**功能特点：**
+
+- ✅ 支持本地视频文件上传
+- ✅ 自动等待视频处理完成后再提交
+- ✅ 支持标题、正文、标签同步填写
+- ✅ 可与多账号功能同时使用
+
+</details>
+
+<details>
+<summary><b>4. 搜索内容</b></summary>
 
 根据关键词搜索小红书内容。
 
@@ -78,7 +170,7 @@ https://github.com/user-attachments/assets/03c5077d-6160-4b18-b629-2e40933a1fd3
 </details>
 
 <details>
-<summary><b>4. 获取推荐列表</b></summary>
+<summary><b>5. 获取推荐列表</b></summary>
 
 获取指定账号在网页首页看到的推荐内容列表。
 
@@ -89,7 +181,7 @@ https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
 </details>
 
 <details>
-<summary><b>5. 获取帖子详情（包括互动数据和评论）</b></summary>
+<summary><b>6. 获取帖子详情（包括互动数据和评论）</b></summary>
 
 获取小红书帖子的完整详情，包括：
 
@@ -107,6 +199,25 @@ https://github.com/user-attachments/assets/110fc15d-46f2-4cca-bdad-9de5b5b8cc28
 **获取帖子详情演示：**
 
 https://github.com/user-attachments/assets/76a26130-a216-4371-a6b3-937b8fda092a
+
+</details>
+
+<details>
+<summary><b>7. 管理账号备注</b></summary>
+
+列出所有账号并为账号添加备注，方便区分不同业务用途。
+
+**示例：**
+
+```bash
+# 查看账号列表
+curl http://localhost:18060/api/v1/accounts
+
+# 更新账号备注
+curl -X POST http://localhost:18060/api/v1/accounts/remark \
+  -H "Content-Type: application/json" \
+  -d '{"account_id":"brand_a","remark":"品牌A主账号"}'
+```
 
 </details>
 
@@ -635,11 +746,16 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 - `check_login_status` - 检查小红书登录状态（无参数）
 - `publish_content` - 发布图文内容到小红书（必需：title, content, images）
   - `images`: 支持 HTTP 链接或本地绝对路径，推荐使用本地路径
+- `publish_video` - 发布视频内容到小红书（必需：title, content, video，可选：tags）
 - `list_feeds` - 获取指定账号的推荐内容列表（无参数）
-- `search_feeds` - 搜索小红书内容（需要：keyword）
+- `search_feeds` - 搜索小红书内容（需要：keyword，可选：sort、note_type、publish_time、search_scope、distance）
 - `get_feed_detail` - 获取帖子详情（需要：feed_id, xsec_token）
 - `post_comment_to_feed` - 发表评论到小红书帖子（需要：feed_id, xsec_token, content）
 - `user_profile` - 获取用户个人主页信息（需要：user_id, xsec_token）
+- `like_feed` - 点赞/取消点赞笔记（需要：feed_id, xsec_token，可选：unlike）
+- `favorite_feed` - 收藏/取消收藏笔记（需要：feed_id, xsec_token，可选：unfavorite）
+- `list_accounts` - 查看所有账号及备注信息（无参数）
+- `set_account_remark` - 更新账号备注（需要：account_id，可选：remark）
 
 ### 2.4. 使用示例
 
@@ -664,6 +780,15 @@ Cline 是一个强大的 AI 编程助手，支持 MCP 协议集成。
 - /Users/username/Pictures/cherry_blossom.jpg
 
 使用 xiaohongshu-mcp 进行发布。
+```
+
+**示例 3：发布视频内容**
+
+```
+帮我把 /Users/allen/Videos/travel.mp4 这段素材发布到小红书，
+标题叫《周末露营Vlog》，正文写得生活化一点，顺便带上 #露营 #vlog 两个标签。
+
+使用 xiaohongshu-mcp 的 publish_video 工具完成。
 ```
 
 ![claude-cli 进行发布](./assets/claude_push.gif)

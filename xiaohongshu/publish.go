@@ -31,44 +31,21 @@ const (
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
 
-	pp := page.Timeout(60 * time.Second)
+	pp := page.Timeout(90 * time.Second)
 
 	pp.MustNavigate(urlOfPublic)
 
-	pp.MustElement(`div.upload-content`).MustWaitVisible()
+	if err := waitPublishEditorReady(pp); err != nil {
+		return nil, err
+	}
+
 	slog.Info("wait for upload-content visible success")
 
 	// 等待一段时间确保页面完全加载
 	time.Sleep(1 * time.Second)
 
-	createElems := pp.MustElements("div.creator-tab")
-
-	// 过滤掉隐藏的元素
-	var visibleElems []*rod.Element
-	for _, elem := range createElems {
-		if isElementVisible(elem) {
-			visibleElems = append(visibleElems, elem)
-		}
-	}
-
-	if len(visibleElems) == 0 {
-		return nil, errors.New("没有找到上传图文元素")
-	}
-
-	for _, elem := range visibleElems {
-		text, err := elem.Text()
-		if err != nil {
-			slog.Error("获取元素文本失败", "error", err)
-			continue
-		}
-
-		if text == "上传图文" {
-			if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				slog.Error("点击元素失败", "error", err)
-				continue
-			}
-			break
-		}
+	if err := clickPublishTab(pp, "上传图文"); err != nil {
+		return nil, err
 	}
 
 	time.Sleep(1 * time.Second)
@@ -96,6 +73,42 @@ func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent
 	return nil
 }
 
+func clickPublishTab(page *rod.Page, label string) error {
+	createElems, err := page.Elements("div.creator-tab")
+	if err != nil {
+		return err
+	}
+
+	var visibleElems []*rod.Element
+	for _, elem := range createElems {
+		if isElementVisible(elem) {
+			visibleElems = append(visibleElems, elem)
+		}
+	}
+
+	if len(visibleElems) == 0 {
+		return errors.New("没有找到上传元素")
+	}
+
+	for _, elem := range visibleElems {
+		text, err := elem.Text()
+		if err != nil {
+			slog.Error("获取元素文本失败", "error", err)
+			continue
+		}
+
+		if text == label {
+			if err := elem.Click(proto.InputMouseButtonLeft, 1); err != nil {
+				slog.Error("点击发布TAB失败", "label", label, "error", err)
+				continue
+			}
+			return nil
+		}
+	}
+
+	return errors.Errorf("未找到发布TAB: %s", label)
+}
+
 func uploadImages(page *rod.Page, imagesPaths []string) error {
 	pp := page.Timeout(30 * time.Second)
 
@@ -107,10 +120,18 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 	}
 
 	// 等待上传输入框出现
-	uploadInput := pp.MustElement(".upload-input")
+	uploadInput, err := pp.Element(".upload-input")
+	if err != nil {
+		return err
+	}
+	if uploadInput == nil {
+		return errors.New("未找到图片上传输入框")
+	}
 
 	// 上传多个文件
-	uploadInput.MustSetFiles(imagesPaths...)
+	if err := uploadInput.SetFiles(imagesPaths); err != nil {
+		return errors.Wrap(err, "设置上传文件失败")
+	}
 
 	// 等待并验证上传完成
 	return waitForUploadComplete(pp, len(imagesPaths))
@@ -118,7 +139,7 @@ func uploadImages(page *rod.Page, imagesPaths []string) error {
 
 // waitForUploadComplete 等待并验证上传完成
 func waitForUploadComplete(page *rod.Page, expectedCount int) error {
-	maxWaitTime := 60 * time.Second
+	maxWaitTime := 90 * time.Second
 	checkInterval := 500 * time.Millisecond
 	start := time.Now()
 
@@ -147,15 +168,40 @@ func waitForUploadComplete(page *rod.Page, expectedCount int) error {
 	return errors.New("上传超时，请检查网络连接和图片大小")
 }
 
+func waitPublishEditorReady(page *rod.Page) error {
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		el, err := page.Element("div.upload-content")
+		if err == nil && el != nil {
+			visible, visErr := el.Visible()
+			if visErr == nil && visible {
+				return nil
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return errors.New("发布编辑器未在预期时间内准备就绪")
+}
+
 func submitPublish(page *rod.Page, title, content string, tags []string) error {
 
-	titleElem := page.MustElement("div.d-input input")
-	titleElem.MustInput(title)
+	titleElem, err := page.Element("div.d-input input")
+	if err != nil {
+		return errors.Wrap(err, "未找到标题输入框")
+	}
+	if titleElem == nil {
+		return errors.New("标题输入框为空")
+	}
+	if err := titleElem.Input(title); err != nil {
+		return errors.Wrap(err, "标题输入失败")
+	}
 
 	time.Sleep(1 * time.Second)
 
 	if contentElem, ok := getContentElement(page); ok {
-		contentElem.MustInput(content)
+		if err := contentElem.Input(content); err != nil {
+			return errors.Wrap(err, "正文输入失败")
+		}
 
 		inputTags(contentElem, tags)
 
@@ -165,8 +211,16 @@ func submitPublish(page *rod.Page, title, content string, tags []string) error {
 
 	time.Sleep(1 * time.Second)
 
-	submitButton := page.MustElement("div.submit div.d-button-content")
-	submitButton.MustClick()
+	submitButton, err := page.Element("div.submit div.d-button-content")
+	if err != nil {
+		return errors.Wrap(err, "未找到提交按钮")
+	}
+	if submitButton == nil {
+		return errors.New("提交按钮为空")
+	}
+	if err := submitButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return errors.Wrap(err, "点击提交按钮失败")
+	}
 
 	time.Sleep(3 * time.Second)
 

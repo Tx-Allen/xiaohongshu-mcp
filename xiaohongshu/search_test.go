@@ -21,7 +21,7 @@ func TestSearch(t *testing.T) {
 
 	action := NewSearchAction(page)
 
-	feeds, err := action.Search(context.Background(), "Kimi")
+	feeds, err := action.Search(context.Background(), "Kimi", nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, feeds, "feeds should not be empty")
 
